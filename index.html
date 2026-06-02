@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<meta name="theme-color" content="#ff0000">
+<link rel="manifest" href="manifest.json">
+<title>Sports Stream - Live Matches</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body { 
+    background: #0a0a1a; 
+    font-family: 'Segoe UI', Arial, sans-serif;
+    padding: 10px;
+    min-height: 100vh;
+}
+
+.country-header {
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border-radius: 30px;
+    padding: 10px 20px;
+    margin-bottom: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+.country-name { font-size: 18px; font-weight: bold; color: #ff6b6b; }
+.country-flag { font-size: 14px; color: #888; }
+.country-time { font-size: 11px; color: #888; }
+
+.tabs-container {
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-bottom: 15px;
+}
+.tabs-container::-webkit-scrollbar { display: none; }
+.tabs { display: flex; gap: 8px; padding: 5px 0; }
+.tab {
+    background: #1a1a2e;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 30px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.tab.active { background: #ff0000; box-shadow: 0 2px 10px rgba(255,0,0,0.4); }
+
+.horizontal-swipe {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    scroll-behavior: smooth;
+}
+.horizontal-swipe::-webkit-scrollbar { display: none; }
+.tab-page {
+    min-width: 100%;
+    scroll-snap-align: start;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+.tab-page::-webkit-scrollbar { width: 4px; }
+.tab-page::-webkit-scrollbar-track { background: #1a1a2e; border-radius: 10px; }
+.tab-page::-webkit-scrollbar-thumb { background: #ff0000; border-radius: 10px; }
+
+.match-card {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border-radius: 16px;
+    padding: 14px;
+    margin-bottom: 12px;
+    border-left: 4px solid #ff0000;
+}
+.match-card.live-card {
+    border-left: 4px solid #ff0000;
+    box-shadow: 0 0 15px rgba(255,0,0,0.5);
+    animation: blink 1s infinite;
+}
+@keyframes blink {
+    0% { box-shadow: 0 0 0px rgba(255,0,0,0.3); }
+    50% { box-shadow: 0 0 20px rgba(255,0,0,0.8); }
+    100% { box-shadow: 0 0 0px rgba(255,0,0,0.3); }
+}
+.match-teams {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 16px;
+    font-weight: 600;
+    color: white;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+.match-sport { font-size: 11px; color: #ffaa66; margin-bottom: 8px; text-transform: uppercase; }
+.match-time { font-size: 12px; color: #ff8888; text-align: center; margin-top: 8px; }
+.match-date {
+    font-size: 14px;
+    font-weight: bold;
+    color: #ffaa66;
+    margin: 15px 0 8px 5px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #ffaa66;
+    position: sticky;
+    top: 0;
+    background: #0a0a1a;
+    z-index: 10;
+}
+.live-badge {
+    background: #ff0000;
+    color: white;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    display: inline-block;
+    margin-top: 8px;
+    animation: pulse 1s infinite;
+}
+.countdown-badge {
+    background: #ff8800;
+    color: white;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    display: inline-block;
+    margin-top: 8px;
+    animation: pulseOrange 1s infinite;
+}
+.highlights-badge {
+    background: #ffaa33;
+    color: #1a1a2e;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    display: inline-block;
+    margin-top: 8px;
+    font-weight: bold;
+}
+.waiting-badge { background: #555; color: #aaa; font-size: 10px; padding: 2px 8px; border-radius: 20px; display: inline-block; margin-top: 8px; }
+.multi-badge {
+    background: #4caf50;
+    color: white;
+    font-size: 8px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    display: inline-block;
+    margin-left: 8px;
+}
+@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+@keyframes pulseOrange { 0% { opacity: 1; background: #ff8800; } 50% { opacity: 0.7; background: #ffaa33; } 100% { opacity: 1; background: #ff8800; } }
+
+.watch-btn, .countdown-btn, .highlights-btn {
+    border: none;
+    padding: 8px 16px;
+    border-radius: 25px;
+    font-size: 12px;
+    font-weight: bold;
+    margin-top: 10px;
+    width: 100%;
+    cursor: pointer;
+}
+.watch-btn { background: #ff0000; color: white; }
+.countdown-btn { background: #ff8800; color: white; animation: pulseOrangeBtn 1s infinite; }
+.highlights-btn { background: #ffaa33; color: #1a1a2e; }
+@keyframes pulseOrangeBtn {
+    0% { background: #ff8800; }
+    50% { background: #ffaa33; }
+    100% { background: #ff8800; }
+}
+.loading { text-align: center; color: white; padding: 40px; }
+.error { text-align: center; color: #ff6666; padding: 40px; }
+.vs-text { color: #ffd700; font-size: 14px; font-weight: bold; margin: 0 8px; }
+
+.loading-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.95);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
+.loading-overlay.active { display: flex; }
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid #ff0000;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+.loading-text { color: white; margin-top: 15px; font-size: 14px; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+.video-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    z-index: 10000;
+}
+.video-overlay.active { display: block; }
+.video-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
+}
+.video-container iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+.close-video-btn {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.3);
+    padding: 8px 16px;
+    border-radius: 30px;
+    font-size: 12px;
+    font-weight: bold;
+    z-index: 10001;
+    cursor: pointer;
+    backdrop-filter: blur(5px);
+}
+:fullscreen .close-video-btn { display: none !important; }
+
+.toast {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.85);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 30px;
+    font-size: 14px;
+    z-index: 20000;
+    display: none;
+}
+.toast.show { display: block; animation: fadeInOut 2s ease; }
+@keyframes fadeInOut { 0% { opacity: 0; } 20% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+
+.link-popup {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.9);
+    z-index: 20001;
+    justify-content: center;
+    align-items: center;
+}
+.link-popup.active { display: flex; }
+.link-popup-content {
+    background: #1a1a2e;
+    border-radius: 20px;
+    padding: 20px;
+    width: 80%;
+    max-width: 350px;
+    text-align: center;
+    border: 1px solid #ff0000;
+}
+.link-popup-content h3 { color: #ffaa66; margin-bottom: 15px; }
+.link-option {
+    background: #ff0000;
+    color: white;
+    border: none;
+    padding: 12px;
+    margin: 8px 0;
+    border-radius: 30px;
+    font-size: 14px;
+    font-weight: bold;
+    width: 100%;
+    cursor: pointer;
+}
+.link-option:hover { background: #cc0000; }
+.link-close { background: #333; color: #aaa; border: none; padding: 10px; margin-top: 10px; border-radius: 30px; width: 100%; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<div class="country-header">
+    <div>
+        <div class="country-name">🇧🇩 BANGLADESH</div>
+        <div class="country-time">Live Football · Live Sports</div>
+    </div>
+    <div class="country-flag">⚽ SPORTS</div>
+</div>
+
+<div class="tabs-container">
+    <div class="tabs" id="tabs">
+        <div class="tab active" data-filter="all" data-index="0">All Sports</div>
+        <div class="tab" data-filter="football" data-index="1">⚽ Football</div>
+        <div class="tab" data-filter="cricket" data-index="2">🏏 Cricket</div>
+        <div class="tab" data-filter="tennis" data-index="3">🎾 Tennis</div>
+        <div class="tab" data-filter="hockey" data-index="4">🏒 Hockey</div>
+        <div class="tab" data-filter="others" data-index="5">🎯 Others</div>
+    </div>
+</div>
+
+<div class="horizontal-swipe" id="horizontalSwipe">
+    <div class="tab-page" id="page-all"></div>
+    <div class="tab-page" id="page-football"></div>
+    <div class="tab-page" id="page-cricket"></div>
+    <div class="tab-page" id="page-tennis"></div>
+    <div class="tab-page" id="page-hockey"></div>
+    <div class="tab-page" id="page-others"></div>
+</div>
+
+<div id="loadingOverlay" class="loading-overlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">Loading stream...</div>
+</div>
+
+<div id="videoOverlay" class="video-overlay">
+    <div class="video-container" id="videoContainer">
+        <button class="close-video-btn" onclick="closeVideoPlayer()">✕ CLOSE</button>
+        <iframe id="tvFrame" src="" sandbox="allow-same-origin allow-scripts allow-forms allow-presentation allow-popups-to-escape-sandbox" allow="autoplay; fullscreen; encrypted-media"></iframe>
+    </div>
+</div>
+
+<div id="linkPopup" class="link-popup">
+    <div class="link-popup-content">
+        <h3>📺 Select Stream</h3>
+        <div id="linkList"></div>
+        <button class="link-close" onclick="closeLinkPopup()">Cancel</button>
+    </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+    // ==================== STREAM LINKS STORAGE ====================
+    let workingLinks = [];
+    const WORKING_LINKS_KEY = 'working_stream_links';
+    
+    function loadWorkingLinks() {
+        const saved = localStorage.getItem(WORKING_LINKS_KEY);
+        if (saved) {
+            try {
+                workingLinks = JSON.parse(saved);
+                console.log(`Loaded ${workingLinks.length} working links`);
+            } catch(e) { workingLinks = []; }
+        }
+    }
+    
+    // ==================== MAIN APP CODE ====================
+    const STORAGE_KEY = 'sports_events_data';
+    const LAST_FETCH_KEY = 'last_fetch_time';
+    const REFRESH_INTERVAL = 30 * 60 * 1000;
+    const MATCH_DURATION = 7200;
+    const HIGHLIGHTS_DURATION = 7200;
+    
+    const FOOTBALL_SPORTS = ['football', 'soccer'];
+    const CRICKET_SPORTS = ['cricket'];
+    const TENNIS_SPORTS = ['tennis'];
+    const HOCKEY_SPORTS = ['hockey', 'fieldhockey', 'ice hockey'];
+    
+    function getSportCategory(sport) {
+        const sportLower = sport.toLowerCase().trim();
+        if (FOOTBALL_SPORTS.includes(sportLower)) return 'football';
+        if (CRICKET_SPORTS.includes(sportLower)) return 'cricket';
+        if (TENNIS_SPORTS.includes(sportLower)) return 'tennis';
+        if (HOCKEY_SPORTS.includes(sportLower)) return 'hockey';
+        return 'others';
+    }
+    
+    const countryFlags = {
+        'Ecuador': '🇪🇨', 'Saudi Arabia': '🇸🇦', 'Mexico': '🇲🇽', 'Australia': '🇦🇺',
+        'Japan': '🇯🇵', 'Iceland': '🇮🇸', 'Switzerland': '🇨🇭', 'Jordan': '🇯🇴',
+        'Cape Verde': '🇨🇻', 'Serbia': '🇷🇸', 'Czech Republic': '🇨🇿', 'Kosovo': '🇽🇰',
+        'Poland': '🇵🇱', 'Ukraine': '🇺🇦', 'Germany': '🇩🇪', 'Finland': '🇫🇮',
+        'USA': '🇺🇸', 'Senegal': '🇸🇳', 'Brazil': '🇧🇷', 'Panama': '🇵🇦',
+        'Bangladesh': '🇧🇩', 'India': '🇮🇳', 'GT': '🏏', 'RCB': '🏏', 'Jamaica': '🇯🇲'
+    };
+    
+    function getCountryFlag(name) {
+        for (const [key, flag] of Object.entries(countryFlags)) {
+            if (name.includes(key)) return flag;
+        }
+        return '🏆';
+    }
+    
+    function formatMatchWithFlags(eventName) {
+        if (eventName.includes(' vs ')) {
+            const teams = eventName.split(' vs ');
+            if (teams.length === 2) {
+                return `${getCountryFlag(teams[0])} ${teams[0]} <span class="vs-text">VS</span> ${getCountryFlag(teams[1])} ${teams[1]}`;
+            }
+        }
+        return eventName;
+    }
+    
+    let allEvents = [];
+    let eventsLoaded = false;
+    
+    const pages = {
+        all: document.getElementById('page-all'),
+        football: document.getElementById('page-football'),
+        cricket: document.getElementById('page-cricket'),
+        tennis: document.getElementById('page-tennis'),
+        hockey: document.getElementById('page-hockey'),
+        others: document.getElementById('page-others')
+    };
+    
+    const tabFilters = ['all', 'football', 'cricket', 'tennis', 'hockey', 'others'];
+    let currentTabIndex = 0;
+    const tabs = document.querySelectorAll('.tab');
+    const horizontalSwipe = document.getElementById('horizontalSwipe');
+    const videoOverlay = document.getElementById('videoOverlay');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const iframe = document.getElementById('tvFrame');
+    const toast = document.getElementById('toast');
+    const linkPopup = document.getElementById('linkPopup');
+    const linkList = document.getElementById('linkList');
+    
+    let isLoading = false;
+    let loadTimeout = null;
+    
+    function showToastMessage(msg) {
+        toast.textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => { toast.classList.remove('show'); }, 2000);
+    }
+    
+    function closeLinkPopup() {
+        linkPopup.classList.remove('active');
+    }
+    
+    function showLinkPopup(links) {
+        linkList.innerHTML = '';
+        links.forEach((link, index) => {
+            const btn = document.createElement('button');
+            btn.className = 'link-option';
+            btn.textContent = `🎬 Stream Link ${index + 1}`;
+            btn.onclick = () => {
+                closeLinkPopup();
+                openVideoPlayer(link);
+            };
+            linkList.appendChild(btn);
+        });
+        linkPopup.classList.add('active');
+    }
+    
+    window.watchMatch = function(link) {
+        if (link && link.length > 0) {
+            openVideoPlayer(link);
+        } else {
+            showToastMessage("❌ No stream link available");
+        }
+    };
+    
+    window.watchMatchMulti = function(link1, link2, link3) {
+        var links = [];
+        if (link1 && link1 !== 'undefined') links.push(link1);
+        if (link2 && link2 !== 'undefined') links.push(link2);
+        if (link3 && link3 !== 'undefined') links.push(link3);
+        if (links.length === 0) {
+            showToastMessage("❌ No stream links available");
+            return;
+        }
+        if (links.length === 1) {
+            openVideoPlayer(links[0]);
+        } else {
+            showLinkPopup(links);
+        }
+    };
+    
+    function getCountdownTime(timestamp) {
+        const now = Math.floor(Date.now() / 1000);
+        const diff = timestamp - now;
+        if (diff <= 0) return null;
+        const minutes = Math.floor(diff / 60);
+        const seconds = diff % 60;
+        return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+    }
+    
+    function getMatchStatus(timestamp) {
+        const now = Math.floor(Date.now() / 1000);
+        const matchStart = timestamp;
+        const matchEnd = timestamp + MATCH_DURATION;
+        const highlightsEnd = matchEnd + HIGHLIGHTS_DURATION;
+        if (now >= matchStart && now <= matchEnd) return 'live';
+        else if (now > matchEnd && now <= highlightsEnd) return 'finished';
+        else if (now > highlightsEnd) return 'remove';
+        else if (now >= matchStart - 600 && now < matchStart) return 'preview';
+        else return 'upcoming';
+    }
+    
+    function formatTime(timestamp) {
+        const date = new Date(timestamp * 1000);
+        let hours = date.getHours();
+        const minutes = date.getMinutes();
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12;
+        const minutesStr = minutes < 10 ? '0' + minutes : minutes;
+        return `${hours}:${minutesStr} ${ampm}`;
+    }
+    
+    function formatDate(timestamp) {
+        const date = new Date(timestamp * 1000);
+        return date.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    }
+    
+    function getSportIcon(sport) {
+        const icons = { 
+            'football': '⚽', 'cricket': '🏏', 'tennis': '🎾', 'hockey': '🏒', 
+            'athletics': '🏃', 'boxing': '🥊', 'basketball': '🏀', 'volleyball': '🏐',
+            'baseball': '⚾', 'golf': '⛳', 'rugby': '🏉', 'motorsport': '🏎️',
+            'default': '🎯'
+        };
+        return icons[sport.toLowerCase()] || icons.default;
+    }
+    
+    function generateMatchCardHtml(event, status) {
+        const formattedEvent = formatMatchWithFlags(event.event);
+        const isLive = status === 'live';
+        const liveClass = isLive ? 'live-card' : '';
+        const linkCount = event.links ? event.links.length : 0;
+        const multiBadge = linkCount > 1 ? '<span class="multi-badge">📺 MULTI</span>' : '';
+        
+        let badgeHtml = '', buttonHtml = '';
+        
+        if (status === 'live') {
+            badgeHtml = '<div class="live-badge">🔴 LIVE</div>';
+            if (linkCount === 1) {
+                const singleLink = event.links[0];
+                buttonHtml = `<button class="watch-btn" onclick="window.watchMatch('${singleLink.replace(/'/g, "\\'")}')">▶ WATCH LIVE</button>`;
+            } else {
+                const link1 = event.links[0] || '';
+                const link2 = event.links[1] || '';
+                const link3 = event.links[2] || '';
+                buttonHtml = `<button class="watch-btn" onclick="window.watchMatchMulti('${link1.replace(/'/g, "\\'")}','${link2.replace(/'/g, "\\'")}','${link3.replace(/'/g, "\\'")}')">▶ WATCH LIVE</button>`;
+            }
+        } else if (status === 'finished') {
+            badgeHtml = '<div class="highlights-badge">🎬 HIGHLIGHTS AVAILABLE</div>';
+            if (linkCount === 1) {
+                const singleLink = event.links[0];
+                buttonHtml = `<button class="highlights-btn" onclick="window.watchMatch('${singleLink.replace(/'/g, "\\'")}')">▶ WATCH HIGHLIGHTS</button>`;
+            } else {
+                const link1 = event.links[0] || '';
+                const link2 = event.links[1] || '';
+                const link3 = event.links[2] || '';
+                buttonHtml = `<button class="highlights-btn" onclick="window.watchMatchMulti('${link1.replace(/'/g, "\\'")}','${link2.replace(/'/g, "\\'")}','${link3.replace(/'/g, "\\'")}')">▶ WATCH HIGHLIGHTS</button>`;
+            }
+        } else if (status === 'preview') {
+            const countdown = getCountdownTime(event.timestamp);
+            badgeHtml = `<div class="countdown-badge">⏰ STARTS IN ${countdown}</div>`;
+            if (linkCount === 1) {
+                const singleLink = event.links[0];
+                buttonHtml = `<button class="countdown-btn" onclick="window.watchMatch('${singleLink.replace(/'/g, "\\'")}')">🎬 JOIN</button>`;
+            } else {
+                const link1 = event.links[0] || '';
+                const link2 = event.links[1] || '';
+                const link3 = event.links[2] || '';
+                buttonHtml = `<button class="countdown-btn" onclick="window.watchMatchMulti('${link1.replace(/'/g, "\\'")}','${link2.replace(/'/g, "\\'")}','${link3.replace(/'/g, "\\'")}')">🎬 JOIN</button>`;
+            }
+        } else {
+            badgeHtml = '<div class="waiting-badge">⏰ WAITING</div>';
+            buttonHtml = '';
+        }
+        
+        return `
+            <div class="match-card ${liveClass}">
+                <div class="match-sport">${getSportIcon(event.sport)} ${event.sport.toUpperCase()} ${multiBadge}</div>
+                <div class="match-teams">${formattedEvent}</div>
+                <div class="match-time">⏰ ${formatTime(event.timestamp)}</div>
+                ${badgeHtml}
+                ${buttonHtml}
+            </div>
+        `;
+    }
+    
+    function renderPage(filter, pageElement) {
+        if (!pageElement || !eventsLoaded) return;
+        let filteredEvents = allEvents.filter(e => getMatchStatus(e.timestamp) !== 'remove');
+        if (filter === 'all') { }
+        else if (filter === 'others') {
+            filteredEvents = filteredEvents.filter(e => getSportCategory(e.sport) === 'others');
+        } else {
+            filteredEvents = filteredEvents.filter(e => getSportCategory(e.sport) === filter);
+        }
+        if (filteredEvents.length === 0) {
+            pageElement.innerHTML = '<div class="error">⚠️ No events found.</div>';
+            return;
+        }
+        
+        const liveEvents = [], previewEvents = [], upcomingEvents = [], finishedEvents = [];
+        filteredEvents.forEach(event => {
+            const status = getMatchStatus(event.timestamp);
+            if (status === 'live') liveEvents.push(event);
+            else if (status === 'preview') previewEvents.push(event);
+            else if (status === 'upcoming') upcomingEvents.push(event);
+            else if (status === 'finished') finishedEvents.push(event);
+        });
+        liveEvents.sort((a, b) => a.timestamp - b.timestamp);
+        previewEvents.sort((a, b) => a.timestamp - b.timestamp);
+        upcomingEvents.sort((a, b) => a.timestamp - b.timestamp);
+        finishedEvents.sort((a, b) => b.timestamp - a.timestamp);
+        
+        function groupByDate(events) {
+            const grouped = {};
+            events.forEach(e => {
+                const dateKey = formatDate(e.timestamp);
+                if (!grouped[dateKey]) grouped[dateKey] = [];
+                grouped[dateKey].push(e);
+            });
+            return grouped;
+        }
+        
+        let html = '';
+        if (liveEvents.length > 0) {
+            html += `<div class="match-date">🔴 LIVE NOW</div>`;
+            liveEvents.forEach(event => { html += generateMatchCardHtml(event, 'live'); });
+        }
+        if (previewEvents.length > 0) {
+            const groupedPreview = groupByDate(previewEvents);
+            for (const [date, events] of Object.entries(groupedPreview)) {
+                html += `<div class="match-date">⏰ ${date} (Starting Soon)</div>`;
+                events.forEach(event => { html += generateMatchCardHtml(event, 'preview'); });
+            }
+        }
+        if (upcomingEvents.length > 0) {
+            const groupedUpcoming = groupByDate(upcomingEvents);
+            for (const [date, events] of Object.entries(groupedUpcoming)) {
+                html += `<div class="match-date">🗓️ ${date}</div>`;
+                events.forEach(event => { html += generateMatchCardHtml(event, 'upcoming'); });
+            }
+        }
+        if (finishedEvents.length > 0) {
+            const groupedFinished = groupByDate(finishedEvents);
+            for (const [date, events] of Object.entries(groupedFinished)) {
+                html += `<div class="match-date">🎬 ${date} (Highlights)</div>`;
+                events.forEach(event => { html += generateMatchCardHtml(event, 'finished'); });
+            }
+        }
+        pageElement.innerHTML = html;
+    }
+    
+    function renderAllPages() {
+        if (!eventsLoaded) return;
+        renderPage('all', pages.all);
+        renderPage('football', pages.football);
+        renderPage('cricket', pages.cricket);
+        renderPage('tennis', pages.tennis);
+        renderPage('hockey', pages.hockey);
+        renderPage('others', pages.others);
+    }
+    
+    // ==================== SWIPE ====================
+    function switchToTab(index) {
+        if (index < 0 || index >= tabFilters.length) return;
+        currentTabIndex = index;
+        tabs.forEach((tab, i) => {
+            if (i === currentTabIndex) tab.classList.add('active');
+            else tab.classList.remove('active');
+        });
+        horizontalSwipe.scrollTo({ left: horizontalSwipe.clientWidth * currentTabIndex, behavior: 'smooth' });
+    }
+    tabs.forEach((tab, index) => { tab.addEventListener('click', () => switchToTab(index)); });
+    
+    let startX = 0, startY = 0, isHorizontalSwipe = false;
+    horizontalSwipe.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; startY = e.touches[0].clientY; isHorizontalSwipe = false; });
+    horizontalSwipe.addEventListener('touchmove', (e) => {
+        if (!startX) return;
+        const diffX = Math.abs(e.touches[0].clientX - startX);
+        const diffY = Math.abs(e.touches[0].clientY - startY);
+        if (diffX > diffY && diffX > 10) { isHorizontalSwipe = true; e.preventDefault(); }
+    });
+    horizontalSwipe.addEventListener('touchend', (e) => {
+        if (!startX || !isHorizontalSwipe) { startX = 0; isHorizontalSwipe = false; return; }
+        const endX = e.changedTouches[0].clientX;
+        const diffX = startX - endX;
+        if (Math.abs(diffX) > 50) {
+            if (diffX > 0 && currentTabIndex < tabFilters.length - 1) switchToTab(currentTabIndex + 1);
+            else if (diffX < 0 && currentTabIndex > 0) switchToTab(currentTabIndex - 1);
+        }
+        startX = 0; isHorizontalSwipe = false;
+    });
+    let scrollTimeout;
+    horizontalSwipe.addEventListener('scroll', () => {
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(() => {
+            const newIndex = Math.round(horizontalSwipe.scrollLeft / horizontalSwipe.clientWidth);
+            if (newIndex !== currentTabIndex && newIndex >= 0 && newIndex < tabFilters.length) {
+                currentTabIndex = newIndex;
+                tabs.forEach((tab, i) => { if (i === currentTabIndex) tab.classList.add('active'); else tab.classList.remove('active'); });
+            }
+        }, 100);
+    });
+    
+    // ==================== ADBLOCK + POPUP BLOCKER ====================
+    (function() {
+        console.log("🛡️ AdBlock + Popup Blocker Active");
+        
+        window.open = function() { console.log("🚫 Popup blocked"); return null; };
+        
+        const originalAlert = window.alert;
+        window.alert = function(msg) {
+            if (msg && typeof msg === 'string') {
+                const lower = msg.toLowerCase();
+                if (lower.includes('virus') || lower.includes('win') || lower.includes('click') || lower.includes('elina')) {
+                    console.log("🚫 Alert blocked");
+                    return;
+                }
+            }
+            return originalAlert.call(window, msg);
+        };
+        
+        const originalConfirm = window.confirm;
+        window.confirm = function(msg) {
+            if (msg && typeof msg === 'string') {
+                const lower = msg.toLowerCase();
+                if (lower.includes('virus') || lower.includes('win')) {
+                    console.log("🚫 Confirm blocked");
+                    return false;
+                }
+            }
+            return originalConfirm.call(window, msg);
+        };
+        
+        document.addEventListener('contextmenu', function(e) { e.preventDefault(); return false; });
+        
+        let originalUrl = window.location.href;
+        setInterval(function() {
+            if (window.location.href !== originalUrl) {
+                const newUrl = window.location.href.toLowerCase();
+                if (newUrl.includes('virus') || newUrl.includes('win') || newUrl.includes('prize') || newUrl.includes('click')) {
+                    console.log("🚫 Redirect blocked");
+                    window.location.replace(originalUrl);
+                } else {
+                    originalUrl = window.location.href;
+                }
+            }
+        }, 500);
+        
+        console.log("✅ AdBlock Active");
+    })();
+    
+    // ==================== IN-APP VIDEO PLAYER ====================
+    function openVideoPlayer(streamUrl) {
+        if (!streamUrl || streamUrl === '') {
+            showToastMessage("❌ Invalid stream URL");
+            return;
+        }
+        
+        if (loadTimeout) clearTimeout(loadTimeout);
+        isLoading = true;
+        loadingOverlay.classList.add('active');
+        
+        iframe.src = '';
+        
+        setTimeout(() => {
+            iframe.src = streamUrl;
+        }, 100);
+        
+        loadTimeout = setTimeout(() => {
+            if (isLoading) {
+                videoOverlay.classList.add('active');
+                loadingOverlay.classList.remove('active');
+                document.body.style.overflow = 'hidden';
+                isLoading = false;
+            }
+        }, 3000);
+        
+        iframe.onload = () => {
+            if (isLoading) {
+                clearTimeout(loadTimeout);
+                videoOverlay.classList.add('active');
+                loadingOverlay.classList.remove('active');
+                document.body.style.overflow = 'hidden';
+                isLoading = false;
+                console.log("✅ Stream loaded in-app");
+            }
+        };
+        
+        iframe.onerror = () => {
+            if (isLoading) {
+                clearTimeout(loadTimeout);
+                loadingOverlay.classList.remove('active');
+                showToastMessage("❌ Failed to load stream");
+                isLoading = false;
+            }
+        };
+    }
+    
+    function closeVideoPlayer() {
+        if (loadTimeout) clearTimeout(loadTimeout);
+        isLoading = false;
+        iframe.src = '';
+        videoOverlay.classList.remove('active');
+        loadingOverlay.classList.remove('active');
+        document.body.style.overflow = '';
+        showToastMessage("⏰ Video closed");
+    }
+    
+    window.closeVideoPlayer = closeVideoPlayer;
+    window.closeLinkPopup = closeLinkPopup;
+    
+    // ==================== LOAD DATA WITH CORS PROXY ====================
+    async function fetchAPIEvents() {
+        const proxies = [
+            'https://api.allorigins.win/raw?url=',
+            'https://cors-anywhere.herokuapp.com/',
+            'https://corsproxy.io/?'
+        ];
+        const apiUrl = 'https://abisnews.com/api.php';
+        
+        for (const proxy of proxies) {
+            try {
+                console.log(`Trying proxy: ${proxy}`);
+                const response = await fetch(proxy + encodeURIComponent(apiUrl));
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.status === 'ok' && data.events && data.events.length > 0) {
+                        console.log(`✅ API success via ${proxy}, got ${data.events.length} events`);
+                        return data.events;
+                    }
+                }
+            } catch (error) {
+                console.log(`Proxy failed: ${proxy}`, error.message);
+                continue;
+            }
+        }
+        return [];
+    }
+    
+    async function fetchFreshData() {
+        for (const page of Object.values(pages)) {
+            if (page) page.innerHTML = '<div class="loading">📡 Loading real events from API...</div>';
+        }
+        
+        const apiEvents = await fetchAPIEvents();
+        
+        if (apiEvents.length > 0) {
+            allEvents = apiEvents;
+            eventsLoaded = true;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(allEvents));
+            localStorage.setItem(LAST_FETCH_KEY, Date.now().toString());
+            renderAllPages();
+            showToastMessage(`✅ ${allEvents.length} real events loaded!`);
+            console.log(`✅ Loaded ${allEvents.length} real events from API`);
+            return true;
+        }
+        
+        const cachedData = localStorage.getItem(STORAGE_KEY);
+        if (cachedData) {
+            allEvents = JSON.parse(cachedData);
+            if (allEvents.length > 0) {
+                eventsLoaded = true;
+                renderAllPages();
+                showToastMessage(`📦 Using cached data (${allEvents.length} events)`);
+                console.log(`📦 Using cached data (${allEvents.length} events)`);
+                return true;
+            }
+        }
+        
+        // Fallback sample matches (only as last resort)
+        const now = Math.floor(Date.now() / 1000);
+        allEvents = [
+            { timestamp: now - 1800, sport: 'cricket', event: 'GT vs RCB', links: ['https://streamcrichd.com/update/willowextra.php'] },
+            { timestamp: now + 300, sport: 'football', event: 'Bangladesh vs India', links: ['https://antenasport.org/movistarcampeones.php'] },
+            { timestamp: now + 3600, sport: 'football', event: 'Ecuador vs Saudi Arabia', links: ['https://antenasport.org/movistarcampeones.php'] },
+            { timestamp: now + 7200, sport: 'cricket', event: 'Australia vs England', links: ['https://streamcrichd.com/update/willowextra.php'] }
+        ];
+        eventsLoaded = true;
+        renderAllPages();
+        showToastMessage("📡 Using sample matches (API unavailable)");
+        console.log("⚠️ Using sample matches - API not accessible");
+        return false;
+    }
+    
+    async function checkAndRefresh() {
+        const lastFetch = localStorage.getItem(LAST_FETCH_KEY);
+        const now = Date.now();
+        
+        if (!lastFetch || (now - parseInt(lastFetch)) >= REFRESH_INTERVAL) {
+            await fetchFreshData();
+        } else if (eventsLoaded && allEvents.length > 0) {
+            renderAllPages();
+        } else {
+            await fetchFreshData();
+        }
+    }
+    
+    // ==================== BACK BUTTON ====================
+    let doubleBackPressed = false;
+    let doubleBackTimer = null;
+    document.addEventListener('backbutton', function(e) {
+        if (linkPopup.classList.contains('active')) {
+            e.preventDefault();
+            closeLinkPopup();
+            return;
+        }
+        if (videoOverlay.classList.contains('active') || loadingOverlay.classList.contains('active')) {
+            e.preventDefault();
+            closeVideoPlayer();
+            return;
+        }
+        if (doubleBackPressed) {
+            clearTimeout(doubleBackTimer);
+            doubleBackPressed = false;
+            showToastMessage("👋 Exiting...");
+            setTimeout(() => {
+                if (navigator.app && navigator.app.exitApp) navigator.app.exitApp();
+                else window.close();
+            }, 100);
+        } else {
+            doubleBackPressed = true;
+            showToastMessage("⚠️ Press BACK again to exit");
+            doubleBackTimer = setTimeout(() => { doubleBackPressed = false; }, 2000);
+            e.preventDefault();
+        }
+    });
+    
+    function checkFullscreen() {
+        const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+        const closeBtn = document.querySelector('.close-video-btn');
+        if (closeBtn) closeBtn.style.display = isFullscreen ? 'none' : 'block';
+    }
+    document.addEventListener('fullscreenchange', checkFullscreen);
+    document.addEventListener('webkitfullscreenchange', checkFullscreen);
+    
+    // ==================== SERVICE WORKER REGISTRATION ====================
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').then(() => {
+            console.log('Service Worker registered');
+        }).catch(err => {
+            console.log('Service Worker registration failed:', err);
+        });
+    }
+    
+    // Initialize
+    loadWorkingLinks();
+    
+    // Try cached data first
+    const cachedData = localStorage.getItem(STORAGE_KEY);
+    if (cachedData) {
+        try {
+            const parsed = JSON.parse(cachedData);
+            if (parsed && parsed.length > 0) {
+                allEvents = parsed;
+                eventsLoaded = true;
+                renderAllPages();
+                console.log(`📦 Instant display from cache: ${allEvents.length} events`);
+                setTimeout(() => fetchFreshData(), 2000);
+            } else {
+                fetchFreshData();
+            }
+        } catch(e) {
+            fetchFreshData();
+        }
+    } else {
+        fetchFreshData();
+    }
+    
+    // Refresh every 30 minutes
+    setInterval(checkAndRefresh, REFRESH_INTERVAL);
+    
+    // Refresh display every 10 seconds
+    setInterval(() => {
+        if (eventsLoaded && !videoOverlay.classList.contains('active') && allEvents.length > 0) {
+            renderAllPages();
+        }
+    }, 10000);
+    
+    setTimeout(() => { horizontalSwipe.scrollLeft = 0; }, 100);
+    console.log('✅ Sports App Ready - PWA compatible');
+</script>
+</body>
+</html>
