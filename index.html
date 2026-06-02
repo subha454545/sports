@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<meta name="theme-color" content="#ff0000">
+<link rel="manifest" href="manifest.json">
+<title>Sports Stream - Live Matches (Ad-Free)</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a1a; font-family: 'Segoe UI', Arial, sans-serif; padding: 10px; min-height: 100vh; }
+.country-header {
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border-radius: 30px;
+    padding: 10px 20px;
+    margin-bottom: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+.country-name { font-size: 18px; font-weight: bold; color: #ff6b6b; }
+.country-flag { font-size: 14px; color: #888; }
+.country-time { font-size: 11px; color: #888; }
+.tabs-container {
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-bottom: 15px;
+}
+.tabs-container::-webkit-scrollbar { display: none; }
+.tabs { display: flex; gap: 8px; padding: 5px 0; }
+.tab {
+    background: #1a1a2e;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 30px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.tab.active { background: #ff0000; box-shadow: 0 2px 10px rgba(255,0,0,0.4); }
+.horizontal-swipe {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    scroll-behavior: smooth;
+}
+.horizontal-swipe::-webkit-scrollbar { display: none; }
+.tab-page {
+    min-width: 100%;
+    scroll-snap-align: start;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+.match-card {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border-radius: 16px;
+    padding: 14px;
+    margin-bottom: 12px;
+    border-left: 4px solid #ff0000;
+}
+.match-card.live-card {
+    border-left: 4px solid #ff0000;
+    box-shadow: 0 0 15px rgba(255,0,0,0.5);
+    animation: blink 1s infinite;
+}
+@keyframes blink {
+    0% { box-shadow: 0 0 0px rgba(255,0,0,0.3); }
+    50% { box-shadow: 0 0 20px rgba(255,0,0,0.8); }
+    100% { box-shadow: 0 0 0px rgba(255,0,0,0.3); }
+}
+.match-teams {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 16px;
+    font-weight: 600;
+    color: white;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+.match-sport { font-size: 11px; color: #ffaa66; margin-bottom: 8px; text-transform: uppercase; }
+.match-time { font-size: 12px; color: #ff8888; text-align: center; margin-top: 8px; }
+.match-date {
+    font-size: 14px;
+    font-weight: bold;
+    color: #ffaa66;
+    margin: 15px 0 8px 5px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #ffaa66;
+    position: sticky;
+    top: 0;
+    background: #0a0a1a;
+    z-index: 10;
+}
+.live-badge {
+    background: #ff0000;
+    color: white;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    display: inline-block;
+    margin-top: 8px;
+    animation: pulse 1s infinite;
+}
+@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+.watch-btn {
+    border: none;
+    padding: 8px 16px;
+    border-radius: 25px;
+    font-size: 12px;
+    font-weight: bold;
+    margin-top: 10px;
+    width: 100%;
+    cursor: pointer;
+    background: #ff0000;
+    color: white;
+}
+.loading { text-align: center; color: white; padding: 40px; }
+.error { text-align: center; color: #ff6666; padding: 40px; }
+.vs-text { color: #ffd700; font-size: 14px; font-weight: bold; margin: 0 8px; }
+.loading-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.95);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
+.loading-overlay.active { display: flex; }
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid #ff0000;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+.loading-text { color: white; margin-top: 15px; font-size: 14px; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+.video-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    z-index: 10000;
+}
+.video-overlay.active { display: block; }
+.video-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
+}
+.video-container iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+.close-video-btn {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.3);
+    padding: 8px 16px;
+    border-radius: 30px;
+    font-size: 12px;
+    font-weight: bold;
+    z-index: 10001;
+    cursor: pointer;
+    backdrop-filter: blur(5px);
+}
+.toast {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.85);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 30px;
+    font-size: 14px;
+    z-index: 20000;
+    display: none;
+}
+.toast.show { display: block; animation: fadeInOut 2s ease; }
+@keyframes fadeInOut { 0% { opacity: 0; } 20% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+
+.link-popup {
+    display: none !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: rgba(0,0,0,0.95) !important;
+    z-index: 999999 !important;
+    justify-content: center !important;
+    align-items: center !important;
+}
+.link-popup.active { display: flex !important; }
+.link-popup-content {
+    background: #1a1a2e !important;
+    border-radius: 20px !important;
+    padding: 25px !important;
+    width: 85% !important;
+    max-width: 350px !important;
+    text-align: center !important;
+    border: 2px solid #ff0000 !important;
+}
+.link-popup-content h3 { color: #ffaa66 !important; margin-bottom: 20px !important; }
+.link-option {
+    background: #ff0000 !important;
+    color: white !important;
+    border: none !important;
+    padding: 14px !important;
+    margin: 10px 0 !important;
+    border-radius: 30px !important;
+    font-size: 16px !important;
+    font-weight: bold !important;
+    width: 100% !important;
+    cursor: pointer !important;
+}
+.link-close { 
+    background: #333 !important; 
+    color: #aaa !important; 
+    border: none !important; 
+    padding: 12px !important; 
+    margin-top: 15px !important; 
+    border-radius: 30px !important; 
+    width: 100% !important; 
+    cursor: pointer !important;
+}
+</style>
+</head>
+<body>
+
+<div class="country-header">
+    <div>
+        <div class="country-name">🇧🇩 BANGLADESH</div>
+        <div class="country-time">Live Football · Live Sports · Ad-Free</div>
+    </div>
+    <div class="country-flag">⚽ SPORTS</div>
+</div>
+
+<div class="tabs-container">
+    <div class="tabs" id="tabs">
+        <div class="tab active" data-filter="all" data-index="0">All Sports</div>
+        <div class="tab" data-filter="football" data-index="1">⚽ Football</div>
+        <div class="tab" data-filter="cricket" data-index="2">🏏 Cricket</div>
+        <div class="tab" data-filter="tennis" data-index="3">🎾 Tennis</div>
+        <div class="tab" data-filter="hockey" data-index="4">🏒 Hockey</div>
+        <div class="tab" data-filter="others" data-index="5">🎯 Others</div>
+    </div>
+</div>
+
+<div class="horizontal-swipe" id="horizontalSwipe">
+    <div class="tab-page" id="page-all"></div>
+    <div class="tab-page" id="page-football"></div>
+    <div class="tab-page" id="page-cricket"></div>
+    <div class="tab-page" id="page-tennis"></div>
+    <div class="tab-page" id="page-hockey"></div>
+    <div class="tab-page" id="page-others"></div>
+</div>
+
+<div id="loadingOverlay" class="loading-overlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">Loading ad-free stream...</div>
+</div>
+
+<div id="videoOverlay" class="video-overlay">
+    <div class="video-container">
+        <button class="close-video-btn" onclick="closeVideoPlayer()">✕ CLOSE</button>
+        <iframe id="tvFrame" src="" allow="autoplay; fullscreen; encrypted-media" style="width:100%; height:100%; border:none;"></iframe>
+    </div>
+</div>
+
+<div id="linkPopup" class="link-popup">
+    <div class="link-popup-content">
+        <h3>📺 SELECT STREAM</h3>
+        <div id="linkList"></div>
+        <button class="link-close" onclick="closeLinkPopup()">❌ CANCEL</button>
+    </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+    // ==================== AD-FILTERING PROXY ====================
+    // r.jina.ai is a free proxy that removes ads, popups, and tracking
+    const AD_FILTER_PROXY = 'https://r.jina.ai/';
+    
+    // List of sites known to have heavy ads - these will be proxied
+    const AD_HEAVY_SITES = ['antenasport', 'streamcrichd', 'movistarcampeones', 'crichd', 'vipleague', 'sportsurge'];
+    
+    function shouldUseProxy(url) {
+        if (!url) return false;
+        const lowerUrl = url.toLowerCase();
+        return AD_HEAVY_SITES.some(site => lowerUrl.includes(site));
+    }
+    
+    function getAdFilteredUrl(originalUrl) {
+        if (!originalUrl) return originalUrl;
+        
+        // Clean URL first (remove tracking parameters)
+        let cleaned = originalUrl;
+        try {
+            const urlObj = new URL(originalUrl);
+            const badParams = ['ad', 'ads', 'banner', 'popup', 'clickid', 'ref', 'source', 'utm_source', 'utm_medium', 'affiliate', 'partner', 'sponsor', 'redirect', 'campaign', 'promo', 'offer'];
+            badParams.forEach(p => urlObj.searchParams.delete(p));
+            cleaned = urlObj.toString();
+        } catch(e) {}
+        
+        // If it's an ad-heavy site, wrap with proxy
+        if (shouldUseProxy(cleaned)) {
+            const proxiedUrl = AD_FILTER_PROXY + encodeURIComponent(cleaned);
+            console.log("🛡️ Ad-filtering proxy activated for:", cleaned);
+            return proxiedUrl;
+        }
+        
+        return cleaned;
+    }
+    
+    // ==================== WORKING MATCHES ====================
+    const LIVE_MATCHES = [
+        { sport: "football", event: "Morocco 🆚 Madagascar", time: "11:00 PM", links: ["https://antenasport.org/movistarcampeones.php"] },
+        { sport: "football", event: "Georgia 🆚 Romania", time: "11:00 PM", links: ["https://antenasport.org/movistarcampeones.php"] },
+        { sport: "basketball", event: "Murcia 🆚 Barcelona", time: "11:00 PM", links: ["https://antenasport.org/movistarcampeones.php"] },
+        { sport: "tennis", event: "ATP Masters Final", time: "12:00 AM", links: ["https://antenasport.org/movistarcampeones.php"] },
+        { sport: "football", event: "Haiti 🆚 New Zealand", time: "6:00 AM", links: ["https://antenasport.org/movistarcampeones.php"] },
+        { sport: "volleyball", event: "Belgium 🆚 Poland", time: "9:30 AM", links: ["https://antenasport.org/movistarcampeones.php"] },
+        { sport: "volleyball", event: "Thailand 🆚 Serbia", time: "1:00 PM", links: ["https://antenasport.org/movistarcampeones.php"] },
+        { sport: "volleyball", event: "China 🆚 Czech Republic", time: "5:30 PM", links: ["https://antenasport.org/movistarcampeones.php"] },
+        { sport: "football", event: "Japan U20 🆚 Portugal U20", time: "7:00 PM", links: ["https://antenasport.org/movistarcampeones.php"] }
+    ];
+    
+    function getSportIcon(sport) {
+        const icons = { 'football': '⚽', 'cricket': '🏏', 'tennis': '🎾', 'hockey': '🏒', 'basketball': '🏀', 'volleyball': '🏐', 'default': '🎯' };
+        return icons[sport.toLowerCase()] || icons.default;
+    }
+    
+    function generateMatchCard(match) {
+        const linkCount = match.links.length;
+        const multiBadge = linkCount > 1 ? '<span class="multi-badge">📺 MULTI</span>' : '';
+        const escapedLinks = match.links.map(l => l.replace(/'/g, "\\'"));
+        
+        let buttonHtml = '';
+        if (linkCount === 1) {
+            buttonHtml = `<button class="watch-btn" onclick='watchMatch("${escapedLinks[0]}")'>▶ JOIN NOW (AD-FREE)</button>`;
+        } else {
+            buttonHtml = `<button class="watch-btn" onclick='watchMatchMulti("${escapedLinks[0]}", "${escapedLinks[1] || ''}", "${escapedLinks[2] || ''}")'>▶ JOIN NOW (AD-FREE)</button>`;
+        }
+        
+        return `<div class="match-card live-card"><div class="match-sport">${getSportIcon(match.sport)} ${match.sport.toUpperCase()} ${multiBadge}</div><div class="match-teams">${match.event}</div><div class="match-time">⏰ ${match.time}</div><div class="live-badge">🔴 LIVE</div>${buttonHtml}</div>`;
+    }
+    
+    function renderMatches() {
+        const pages = {
+            all: document.getElementById('page-all'),
+            football: document.getElementById('page-football'),
+            cricket: document.getElementById('page-cricket'),
+            tennis: document.getElementById('page-tennis'),
+            hockey: document.getElementById('page-hockey'),
+            others: document.getElementById('page-others')
+        };
+        
+        pages.all.innerHTML = '<div class="match-date">🔴 LIVE NOW (AD-FREE STREAMS)</div>' + LIVE_MATCHES.map(m => generateMatchCard(m)).join('');
+        pages.football.innerHTML = '<div class="match-date">🔴 LIVE NOW</div>' + (LIVE_MATCHES.filter(m => m.sport === 'football').map(m => generateMatchCard(m)).join('') || '<div class="error">⚠️ No football matches</div>');
+        pages.cricket.innerHTML = '<div class="match-date">🔴 LIVE NOW</div>' + (LIVE_MATCHES.filter(m => m.sport === 'cricket').map(m => generateMatchCard(m)).join('') || '<div class="error">⚠️ No cricket matches</div>');
+        pages.tennis.innerHTML = '<div class="match-date">🔴 LIVE NOW</div>' + (LIVE_MATCHES.filter(m => m.sport === 'tennis').map(m => generateMatchCard(m)).join('') || '<div class="error">⚠️ No tennis matches</div>');
+        pages.hockey.innerHTML = '<div class="match-date">🔴 LIVE NOW</div>' + (LIVE_MATCHES.filter(m => m.sport === 'hockey').map(m => generateMatchCard(m)).join('') || '<div class="error">⚠️ No hockey matches</div>');
+        pages.others.innerHTML = '<div class="match-date">🔴 LIVE NOW</div>' + (LIVE_MATCHES.filter(m => !['football', 'cricket', 'tennis', 'hockey'].includes(m.sport)).map(m => generateMatchCard(m)).join('') || '<div class="error">⚠️ No other sports</div>');
+    }
+    
+    // ==================== VIDEO PLAYER WITH PROXY ====================
+    let isLoading = false, loadTimeout = null;
+    const iframe = document.getElementById('tvFrame');
+    const videoOverlay = document.getElementById('videoOverlay');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const toast = document.getElementById('toast');
+    const linkPopup = document.getElementById('linkPopup');
+    const linkList = document.getElementById('linkList');
+    
+    function showToastMessage(msg) {
+        toast.textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+    
+    window.closeLinkPopup = () => linkPopup && linkPopup.classList.remove('active');
+    
+    window.showStreamPopup = (links) => {
+        if (!linkList) return;
+        linkList.innerHTML = '';
+        links.forEach((link, index) => {
+            const btn = document.createElement('button');
+            btn.className = 'link-option';
+            btn.textContent = `🎬 STREAM ${index + 1} (AD-FREE)`;
+            btn.onclick = () => { window.closeLinkPopup(); openVideoPlayer(link); };
+            linkList.appendChild(btn);
+        });
+        if (linkPopup) linkPopup.classList.add('active');
+    };
+    
+    window.watchMatch = (link) => link ? openVideoPlayer(link) : showToastMessage("❌ No stream link available");
+    
+    window.watchMatchMulti = (link1, link2, link3) => {
+        const links = [link1, link2, link3].filter(l => l && l !== 'undefined' && l !== '');
+        links.length === 1 ? openVideoPlayer(links[0]) : links.length > 1 ? window.showStreamPopup(links) : showToastMessage("❌ No stream links available");
+    };
+    
+    function openVideoPlayer(streamUrl) {
+        if (!streamUrl) { showToastMessage("❌ Invalid stream URL"); return; }
+        
+        // Apply ad-filtering proxy
+        const finalUrl = getAdFilteredUrl(streamUrl);
+        
+        if (loadTimeout) clearTimeout(loadTimeout);
+        isLoading = true;
+        loadingOverlay.classList.add('active');
+        iframe.src = 'about:blank';
+        
+        setTimeout(() => { iframe.src = finalUrl; }, 100);
+        
+        loadTimeout = setTimeout(() => {
+            if (isLoading) {
+                videoOverlay.classList.add('active');
+                loadingOverlay.classList.remove('active');
+                document.body.style.overflow = 'hidden';
+                isLoading = false;
+            }
+        }, 5000);
+        
+        iframe.onload = () => {
+            if (isLoading) {
+                clearTimeout(loadTimeout);
+                videoOverlay.classList.add('active');
+                loadingOverlay.classList.remove('active');
+                document.body.style.overflow = 'hidden';
+                isLoading = false;
+                console.log("✅ Ad-free stream loaded via proxy");
+                showToastMessage("🛡️ Ad-free stream playing");
+                
+                // Extra layer: inject ad blocker into iframe if possible
+                setTimeout(() => {
+                    try {
+                        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                        if (iframeDoc && iframeDoc.head) {
+                            const blockerScript = iframeDoc.createElement('script');
+                            blockerScript.textContent = `
+                                (function() {
+                                    window.open = function() { return null; };
+                                    window.alert = function() { return; };
+                                    window.confirm = function() { return false; };
+                                    setInterval(function() {
+                                        const ads = ['[class*="ad"]', '[id*="ad"]', '.banner', '.popup', 'iframe[src*="doubleclick"]', 'ins.adsbygoogle'];
+                                        ads.forEach(sel => document.querySelectorAll(sel).forEach(el => el.remove()));
+                                    }, 1000);
+                                })();
+                            `;
+                            iframeDoc.head.appendChild(blockerScript);
+                            console.log("🛡️ Extra ad blocker injected into iframe");
+                        }
+                    } catch(e) { console.log("Cannot inject (CORS)"); }
+                }, 2000);
+            }
+        };
+        
+        iframe.onerror = () => {
+            if (isLoading) {
+                clearTimeout(loadTimeout);
+                loadingOverlay.classList.remove('active');
+                showToastMessage("❌ Failed to load stream. Trying direct link...");
+                // Fallback: try without proxy
+                if (finalUrl !== streamUrl) {
+                    setTimeout(() => openVideoPlayer(streamUrl), 500);
+                } else {
+                    isLoading = false;
+                }
+            }
+        };
+    }
+    
+    function closeVideoPlayer() {
+        if (loadTimeout) clearTimeout(loadTimeout);
+        isLoading = false;
+        iframe.src = '';
+        videoOverlay.classList.remove('active');
+        loadingOverlay.classList.remove('active');
+        document.body.style.overflow = '';
+        showToastMessage("⏰ Video closed");
+    }
+    window.closeVideoPlayer = closeVideoPlayer;
+    
+    // ==================== MAIN PAGE AD BLOCKER ====================
+    (function() {
+        console.log("🛡️ Main Page Ad Blocker Active");
+        
+        // Block all popups
+        const originalOpen = window.open;
+        window.open = function(url, name, features) {
+            console.log("🚫 Popup blocked:", url);
+            showToastMessage("🛡️ Ad blocked!");
+            return null;
+        };
+        
+        // Block malicious alerts
+        const originalAlert = window.alert;
+        window.alert = function(msg) {
+            const blocked = ['virus', 'win', 'prize', 'congratulations', 'winner', 'lottery', 'casino', 'subscribe', 'click here', 'claim', 'ad', 'sponsor'];
+            if (msg && typeof msg === 'string' && blocked.some(k => msg.toLowerCase().includes(k))) {
+                console.log("🚫 Alert blocked");
+                return;
+            }
+            return originalAlert.call(window, msg);
+        };
+        
+        // Block confirm dialogs
+        const originalConfirm = window.confirm;
+        window.confirm = function(msg) {
+            const blocked = ['virus', 'win', 'prize', 'congratulations', 'winner', 'lottery'];
+            if (msg && typeof msg === 'string' && blocked.some(k => msg.toLowerCase().includes(k))) {
+                console.log("🚫 Confirm blocked");
+                return false;
+            }
+            return originalConfirm.call(window, msg);
+        };
+        
+        // Block redirects to ad sites
+        let safeUrl = window.location.href;
+        setInterval(function() {
+            if (window.location.href !== safeUrl) {
+                const bad = window.location.href.toLowerCase();
+                const blocked = ['doubleclick', 'googlead', 'virus', 'win', 'prize', 'casino', 'lottery', 'ad', 'banner'];
+                if (blocked.some(b => bad.includes(b))) {
+                    console.log("🚫 Redirect blocked");
+                    window.location.replace(safeUrl);
+                } else {
+                    safeUrl = window.location.href;
+                }
+            }
+        }, 200);
+        
+        // Remove ad elements
+        function cleanAds() {
+            const adSelectors = [
+                'iframe[src*="doubleclick"]', 'iframe[src*="googlead"]', 'iframe[src*="adsystem"]',
+                'ins.adsbygoogle', '[data-ad]', 'div[class*="advertisement"]'
+            ];
+            adSelectors.forEach(sel => document.querySelectorAll(sel).forEach(el => el.remove()));
+        }
+        setInterval(cleanAds, 1500);
+        
+        // Block right click
+        document.addEventListener('contextmenu', e => e.preventDefault());
+        
+        console.log("✅ Main Page Ad Blocker Active");
+    })();
+    
+    // ==================== SWIPE NAVIGATION ====================
+    const tabs = document.querySelectorAll('.tab');
+    const horizontalSwipe = document.getElementById('horizontalSwipe');
+    const tabFilters = ['all', 'football', 'cricket', 'tennis', 'hockey', 'others'];
+    let currentTabIndex = 0;
+    
+    function switchToTab(index) {
+        if (index < 0 || index >= tabFilters.length) return;
+        currentTabIndex = index;
+        tabs.forEach((tab, i) => { i === currentTabIndex ? tab.classList.add('active') : tab.classList.remove('active'); });
+        horizontalSwipe.scrollTo({ left: horizontalSwipe.clientWidth * currentTabIndex, behavior: 'smooth' });
+    }
+    tabs.forEach((tab, index) => tab.addEventListener('click', () => switchToTab(index)));
+    
+    let startX = 0;
+    horizontalSwipe.addEventListener('touchstart', e => { startX = e.touches[0].clientX; });
+    horizontalSwipe.addEventListener('touchend', e => {
+        if (!startX) return;
+        const diff = startX - e.changedTouches[0].clientX;
+        if (Math.abs(diff) > 50) {
+            if (diff > 0 && currentTabIndex < tabFilters.length - 1) switchToTab(currentTabIndex + 1);
+            else if (diff < 0 && currentTabIndex > 0) switchToTab(currentTabIndex - 1);
+        }
+        startX = 0;
+    });
+    
+    let scrollTimeout;
+    horizontalSwipe.addEventListener('scroll', () => {
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(() => {
+            const newIndex = Math.round(horizontalSwipe.scrollLeft / horizontalSwipe.clientWidth);
+            if (newIndex !== currentTabIndex && newIndex >= 0 && newIndex < tabFilters.length) {
+                currentTabIndex = newIndex;
+                tabs.forEach((tab, i) => { i === currentTabIndex ? tab.classList.add('active') : tab.classList.remove('active'); });
+            }
+        }, 100);
+    });
+    
+    // ==================== SERVICE WORKER ====================
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').catch(err => console.log('SW failed:', err));
+    }
+    
+    // ==================== BACK BUTTON ====================
+    let doubleBackPressed = false, doubleBackTimer = null;
+    document.addEventListener('backbutton', function(e) {
+        if (linkPopup && linkPopup.classList.contains('active')) { e.preventDefault(); window.closeLinkPopup(); return; }
+        if (videoOverlay.classList.contains('active')) { e.preventDefault(); closeVideoPlayer(); return; }
+        if (doubleBackPressed) {
+            clearTimeout(doubleBackTimer);
+            doubleBackPressed = false;
+            showToastMessage("👋 Exiting...");
+            setTimeout(() => { if (navigator.app && navigator.app.exitApp) navigator.app.exitApp(); else window.close(); }, 100);
+        } else {
+            doubleBackPressed = true;
+            showToastMessage("⚠️ Press BACK again to exit");
+            doubleBackTimer = setTimeout(() => { doubleBackPressed = false; }, 2000);
+            e.preventDefault();
+        }
+    });
+    
+    // ==================== INIT ====================
+    renderMatches();
+    setTimeout(() => { horizontalSwipe.scrollLeft = 0; }, 100);
+    console.log('✅ Sports App Ready - Ad-filtering proxy active');
+    showToastMessage("🛡️ Ad-free streaming enabled");
+</script>
+</body>
+</html>
