@@ -1,2 +1,0 @@
-# sports
-free for all
